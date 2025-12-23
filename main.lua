@@ -1,31 +1,34 @@
 --====================================================
--- CARLIN HUB | Murder Mystery
+-- CARLIN HUB | Murder Mystery 2
+-- By CARLIN
 --====================================================
 
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+pcall(function()
 
 --====================================================
--- WINDOW + KEY SYSTEM (BOTÃO VERDE GET KEY)
+-- RAYFIELD
+--====================================================
+local Rayfield = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/shlexware/Rayfield/main/source"
+))()
+
+--====================================================
+-- WINDOW + KEY SYSTEM
 --====================================================
 local Window = Rayfield:CreateWindow({
     Name = "Murder Mystery",
     LoadingTitle = "CARLIN HUB",
     LoadingSubtitle = "By CARLIN",
-    ConfigurationSaving = {Enabled = false},
-    Draggable = true,
-
+    ConfigurationSaving = { Enabled = false },
     KeySystem = true,
     KeySettings = {
         Title = "CARLIN HUB",
-        Subtitle = "By CARLIN",
-        Note = "Clique em Get Key para continuar",
-        FileName = "carlin_mm2_key_v2",
+        Subtitle = "Insira a Key",
+        Note = "Clique em Get Key",
+        FileName = "carlinhub_mm2",
         SaveKey = true,
-
         GrabKeyFromSite = true,
         KeyLink = "https://link-hub.net/2522978/BpUM7NTn9gxm",
-
-        -- 🔐 KEYS
         Key = {
             "Uhdkaklwa",
             "waoadlaw",
@@ -44,166 +47,232 @@ local Window = Rayfield:CreateWindow({
 --====================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
+local VIM = game:GetService("VirtualInputManager")
+
 local LP = Players.LocalPlayer
-local Mouse = LP:GetMouse()
 
 local function Char()
     return LP.Character or LP.CharacterAdded:Wait()
 end
 
 --====================================================
--- FLAGS
+-- ROLE FUNCTIONS
 --====================================================
-local flyOn, noclipOn, tpClickOn = false, false, false
-local ringOn, flingOn, orbitOn = false, false, false
-local ringRadius = 10
-local orbitTarget = nil
+local function hasKnife(p)
+    return (p.Backpack and p.Backpack:FindFirstChild("Knife"))
+        or (p.Character and p.Character:FindFirstChild("Knife"))
+end
+
+local function hasGun(p)
+    return (p.Backpack and p.Backpack:FindFirstChild("Gun"))
+        or (p.Character and p.Character:FindFirstChild("Gun"))
+end
+
+local function getRole(p)
+    if hasKnife(p) then return "Murder" end
+    if hasGun(p) then return "Sheriff" end
+    return "Innocent"
+end
+
+local function getMurder()
+    for _,p in pairs(Players:GetPlayers()) do
+        if getRole(p) == "Murder" then return p end
+    end
+end
+
+local function getSheriff()
+    for _,p in pairs(Players:GetPlayers()) do
+        if getRole(p) == "Sheriff" then return p end
+    end
+end
+
+local function getGunDrop()
+    for _,v in pairs(workspace:GetChildren()) do
+        if v:IsA("Tool") and v.Name == "Gun" and v:FindFirstChild("Handle") then
+            return v
+        end
+    end
+end
+
+--====================================================
+-- ESP / CHAMS
+--====================================================
+local espPlayers = false
+local espGun = false
+
+local function clearESP(obj)
+    local h = obj:FindFirstChild("CARLIN_ESP")
+    if h then h:Destroy() end
+end
+
+local function applyESP(obj, color)
+    if not obj or obj:FindFirstChild("CARLIN_ESP") then return end
+    local h = Instance.new("Highlight")
+    h.Name = "CARLIN_ESP"
+    h.FillColor = color
+    h.OutlineColor = color
+    h.FillTransparency = 0.35
+    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    h.Parent = obj
+end
 
 --====================================================
 -- TABS
 --====================================================
-local MovementTab = Window:CreateTab("MOVEMENT", 4483362458)
-local TrollTab = Window:CreateTab("TROLL", 4483362458)
+local MoveTab   = Window:CreateTab("MOVEMENT", 4483362458)
+local TrollTab  = Window:CreateTab("TROLL", 4483362458)
+local InfoTab   = Window:CreateTab("CHAMS & INFO", 4483362458)
+local MurderTab = Window:CreateTab("MURDER", 4483362458)
+local SheriffTab= Window:CreateTab("SHERIFF", 4483362458)
+local InnocTab  = Window:CreateTab("INOCENTE", 4483362458)
 
 --====================================================
--- MOVEMENT : FLY
+-- INFO TEXT (LABELS)
 --====================================================
-local flyBV, flyBG
+local murderLabel = InfoTab:CreateParagraph({Title="Murder:", Content="..."})
+local sheriffLabel = InfoTab:CreateParagraph({Title="Sheriff:", Content="..."})
+local gunLabel = InfoTab:CreateParagraph({Title="Gun Drop:", Content="Não"})
 
-local function startFly()
-    local hrp = Char():WaitForChild("HumanoidRootPart")
-    flyBV = Instance.new("BodyVelocity", hrp)
-    flyBG = Instance.new("BodyGyro", hrp)
-    flyBV.MaxForce = Vector3.new(1e9,1e9,1e9)
-    flyBG.MaxTorque = Vector3.new(1e9,1e9,1e9)
-end
+--====================================================
+-- CHAMS OPTIONS
+--====================================================
+InfoTab:CreateToggle({
+    Name = "Chams Players",
+    Callback = function(v) espPlayers = v end
+})
 
-local function stopFly()
-    if flyBV then flyBV:Destroy() end
-    if flyBG then flyBG:Destroy() end
-end
+InfoTab:CreateToggle({
+    Name = "Chams Gun Drop",
+    Callback = function(v) espGun = v end
+})
 
-MovementTab:CreateToggle({
-    Name = "Fly",
-    Callback = function(v)
-        flyOn = v
-        if v then startFly() else stopFly() end
+--====================================================
+-- MURDER OPTIONS
+--====================================================
+local murderKillAll = false
+local murderKillGun = false
+
+MurderTab:CreateToggle({
+    Name = "Kill All",
+    Callback = function(v) murderKillAll = v end
+})
+
+MurderTab:CreateToggle({
+    Name = "Kill Sheriff / Hero",
+    Callback = function(v) murderKillGun = v end
+})
+
+--====================================================
+-- SHERIFF OPTIONS
+--====================================================
+local aimbotMurder = false
+local runMurder = false
+
+SheriffTab:CreateButton({
+    Name = "Shoot Murder",
+    Callback = function()
+        if getRole(LP) ~= "Sheriff" then return end
+        local m = getMurder()
+        if m and m.Character and m.Character:FindFirstChild("HumanoidRootPart") then
+            local gun = LP.Backpack:FindFirstChild("Gun") or Char():FindFirstChild("Gun")
+            if gun then gun.Parent = Char() end
+            Char().HumanoidRootPart.CFrame =
+                CFrame.new(Char().HumanoidRootPart.Position, m.Character.HumanoidRootPart.Position)
+            VIM:SendMouseButtonEvent(0,0,0,true,game,0)
+            VIM:SendMouseButtonEvent(0,0,0,false,game,0)
+        end
     end
 })
 
---====================================================
--- MOVEMENT : NOCLIP
---====================================================
-MovementTab:CreateToggle({
-    Name = "Noclip",
-    Callback = function(v) noclipOn = v end
+SheriffTab:CreateToggle({
+    Name = "Aimbot Murder",
+    Callback = function(v) aimbotMurder = v end
+})
+
+SheriffTab:CreateToggle({
+    Name = "Run from Murder",
+    Callback = function(v) runMurder = v end
 })
 
 --====================================================
--- MOVEMENT : TP CLICK
+-- INOCENTE OPTIONS
 --====================================================
-MovementTab:CreateToggle({
-    Name = "TP Click",
-    Callback = function(v) tpClickOn = v end
-})
+local secondChance = false
 
-Mouse.Button1Down:Connect(function()
-    if tpClickOn and Mouse.Hit then
-        Char():WaitForChild("HumanoidRootPart").CFrame = Mouse.Hit + Vector3.new(0,3,0)
-    end
-end)
-
---====================================================
--- TROLL : RING PARTS
---====================================================
-TrollTab:CreateToggle({
-    Name = "Ring Parts",
-    Callback = function(v) ringOn = v end
-})
-
-TrollTab:CreateSlider({
-    Name = "Ring Radius",
-    Range = {5,30},
-    Increment = 1,
-    CurrentValue = 10,
-    Callback = function(v) ringRadius = v end
-})
-
---====================================================
--- TROLL : FLING
---====================================================
-TrollTab:CreateToggle({
-    Name = "Fling (Auto Noclip)",
-    Callback = function(v)
-        flingOn = v
-        noclipOn = v
+InnocTab:CreateButton({
+    Name = "Kill All (Fling)",
+    Callback = function()
+        for _,p in pairs(Players:GetPlayers()) do
+            if p.Character and p ~= LP then
+                p.Character:BreakJoints()
+            end
+        end
     end
 })
 
---====================================================
--- TROLL : ORBIT
---====================================================
-local playerNames = {}
-for _,p in pairs(Players:GetPlayers()) do
-    table.insert(playerNames, p.Name)
-end
-
-TrollTab:CreateDropdown({
-    Name = "Orbit Player",
-    Options = playerNames,
-    Callback = function(v)
-        orbitTarget = Players:FindFirstChild(v)
+InnocTab:CreateButton({
+    Name = "Kill Murder",
+    Callback = function()
+        local m = getMurder()
+        if m and m.Character then
+            m.Character:BreakJoints()
+        end
     end
 })
 
-TrollTab:CreateToggle({
-    Name = "Orbit (Speed 5 / Distance 5)",
-    Callback = function(v) orbitOn = v end
+InnocTab:CreateToggle({
+    Name = "Second Chance",
+    Callback = function(v) secondChance = v end
 })
 
 --====================================================
 -- MAIN LOOP
 --====================================================
 RunService.Heartbeat:Connect(function()
-    local char = Char()
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    -- UPDATE INFO
+    local m = getMurder()
+    local s = getSheriff()
+    murderLabel:Set({Content = m and m.Name or "Desconhecido"})
+    sheriffLabel:Set({Content = s and s.Name or "Nenhum"})
+    gunLabel:Set({Content = getGunDrop() and "Sim" or "Não"})
 
-    -- Fly
-    if flyOn and flyBV and flyBG then
-        flyBG.CFrame = workspace.CurrentCamera.CFrame
-        flyBV.Velocity = char.Humanoid.MoveDirection * 60
-    end
-
-    -- Noclip
-    if noclipOn then
-        for _,v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = false
+    -- CHAMS
+    for _,p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            clearESP(p.Character)
+            if espPlayers then
+                local r = getRole(p)
+                if r=="Murder" then applyESP(p.Character, Color3.fromRGB(255,0,0))
+                elseif r=="Sheriff" then applyESP(p.Character, Color3.fromRGB(0,170,255))
+                else applyESP(p.Character, Color3.fromRGB(0,255,0)) end
             end
         end
     end
 
-    -- Ring Parts
-    if ringOn then
-        for _,v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") and not v.Anchored then
-                v.CFrame = hrp.CFrame * CFrame.Angles(0, tick(), 0) * CFrame.new(ringRadius,0,0)
+    local gun = getGunDrop()
+    if gun and espGun then
+        applyESP(gun, Color3.fromRGB(255,255,0))
+    end
+
+    -- MURDER ACTIONS
+    if getRole(LP) == "Murder" then
+        local char = Char()
+        local knife = LP.Backpack:FindFirstChild("Knife") or char:FindFirstChild("Knife")
+        if knife then knife.Parent = char end
+
+        if murderKillAll then
+            for _,p in pairs(Players:GetPlayers()) do
+                if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    char.HumanoidRootPart.CFrame =
+                        p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,-2)
+                    task.wait(0.15)
+                end
             end
         end
-    end
 
-    -- Fling
-    if flingOn then
-        hrp.AssemblyAngularVelocity = Vector3.new(0,9999,0)
-    end
-
-    -- Orbit
-    if orbitOn and orbitTarget and orbitTarget.Character then
-        local tHRP = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
-        if tHRP then
-            hrp.CFrame = tHRP.CFrame * CFrame.Angles(0, tick()*5, 0) * CFrame.new(5,0,0)
+        if murderKillGun and s and s.Character then
+            char.HumanoidRootPart.CFrame =
+                s.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,-2)
         end
     end
 end)
@@ -211,5 +280,7 @@ end)
 Rayfield:Notify({
     Title = "CARLIN HUB",
     Content = "Script carregado com sucesso!",
-    Duration = 4
+    Duration = 5
 })
+
+end)
