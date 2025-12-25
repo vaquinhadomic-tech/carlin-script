@@ -48,12 +48,30 @@ local Window = Rayfield:CreateWindow({
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VIM = game:GetService("VirtualInputManager")
+local UIS = game:GetService("UserInputService")
 
 local LP = Players.LocalPlayer
 
 local function Char()
     return LP.Character or LP.CharacterAdded:Wait()
 end
+
+--====================================================
+-- MOVEMENT VARS
+--====================================================
+local infiniteJump = false
+
+--====================================================
+-- INFINITE JUMP
+--====================================================
+UIS.JumpRequest:Connect(function()
+    if infiniteJump then
+        local humanoid = Char():FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
 
 --====================================================
 -- ROLE FUNCTIONS
@@ -119,19 +137,30 @@ end
 --====================================================
 -- TABS
 --====================================================
-local MoveTab   = Window:CreateTab("MOVEMENT", 4483362458)
-local TrollTab  = Window:CreateTab("TROLL", 4483362458)
-local InfoTab   = Window:CreateTab("CHAMS & INFO", 4483362458)
-local MurderTab = Window:CreateTab("MURDER", 4483362458)
-local SheriffTab= Window:CreateTab("SHERIFF", 4483362458)
-local InnocTab  = Window:CreateTab("INOCENTE", 4483362458)
+local MoveTab    = Window:CreateTab("MOVEMENT", 4483362458)
+local TrollTab   = Window:CreateTab("TROLL", 4483362458)
+local InfoTab    = Window:CreateTab("CHAMS & INFO", 4483362458)
+local MurderTab  = Window:CreateTab("MURDER", 4483362458)
+local SheriffTab = Window:CreateTab("SHERIFF", 4483362458)
+local InnocTab   = Window:CreateTab("INOCENTE", 4483362458)
 
 --====================================================
--- INFO TEXT (LABELS)
+-- MOVEMENT OPTIONS
 --====================================================
-local murderLabel = InfoTab:CreateParagraph({Title="Murder:", Content="..."})
+MoveTab:CreateToggle({
+    Name = "Infinite Jump",
+    CurrentValue = false,
+    Callback = function(v)
+        infiniteJump = v
+    end
+})
+
+--====================================================
+-- INFO LABELS
+--====================================================
+local murderLabel  = InfoTab:CreateParagraph({Title="Murder:", Content="..."})
 local sheriffLabel = InfoTab:CreateParagraph({Title="Sheriff:", Content="..."})
-local gunLabel = InfoTab:CreateParagraph({Title="Gun Drop:", Content="Não"})
+local gunLabel     = InfoTab:CreateParagraph({Title="Gun Drop:", Content="Não"})
 
 --====================================================
 -- CHAMS OPTIONS
@@ -229,22 +258,25 @@ InnocTab:CreateToggle({
 -- MAIN LOOP
 --====================================================
 RunService.Heartbeat:Connect(function()
-    -- UPDATE INFO
     local m = getMurder()
     local s = getSheriff()
+
     murderLabel:Set({Content = m and m.Name or "Desconhecido"})
     sheriffLabel:Set({Content = s and s.Name or "Nenhum"})
     gunLabel:Set({Content = getGunDrop() and "Sim" or "Não"})
 
-    -- CHAMS
     for _,p in pairs(Players:GetPlayers()) do
         if p.Character then
             clearESP(p.Character)
             if espPlayers then
                 local r = getRole(p)
-                if r=="Murder" then applyESP(p.Character, Color3.fromRGB(255,0,0))
-                elseif r=="Sheriff" then applyESP(p.Character, Color3.fromRGB(0,170,255))
-                else applyESP(p.Character, Color3.fromRGB(0,255,0)) end
+                if r == "Murder" then
+                    applyESP(p.Character, Color3.fromRGB(255,0,0))
+                elseif r == "Sheriff" then
+                    applyESP(p.Character, Color3.fromRGB(0,170,255))
+                else
+                    applyESP(p.Character, Color3.fromRGB(0,255,0))
+                end
             end
         end
     end
@@ -254,7 +286,6 @@ RunService.Heartbeat:Connect(function()
         applyESP(gun, Color3.fromRGB(255,255,0))
     end
 
-    -- MURDER ACTIONS
     if getRole(LP) == "Murder" then
         local char = Char()
         local knife = LP.Backpack:FindFirstChild("Knife") or char:FindFirstChild("Knife")
